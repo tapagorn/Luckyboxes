@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lucky 9 Boxes</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            /* เปลี่ยนเป็นธีมแดง-ทอง (Red & Gold Theme) สำหรับร้านหนานหล่อ */
+            background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 50%, #ea580c 100%);
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation; /* Improves touch response */
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .glass-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Interactive States */
+        .glass-box:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255,255,255,0.6);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-box:active {
+            transform: scale(0.95);
+        }
+
+        .glass-box.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
+        /* Winning State */
+        .glass-box.winner {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            border-color: #FFF;
+            box-shadow: 0 0 30px #FFD700;
+            animation: pulse-gold 1.5s infinite;
+            z-index: 10;
+        }
+
+        .glass-box.loser {
+            background: rgba(0,0,0,0.3);
+            border-color: rgba(255,0,0,0.3);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        /* Animations */
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 215, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-5px); }
+            80% { transform: translateX(5px); }
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-enter {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Shine Effect */
+        .shine::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+            transform: skewX(-25deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            100% { left: 125%; }
+        }
+    </style>
+</head>
+<body class="text-white select-none flex flex-col items-center justify-center relative p-4">
+
+    <!-- Header Section -->
+    <header class="w-full max-w-md flex justify-between items-center mb-6 z-10">
+        <div class="flex items-center gap-2">
+            <div class="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                <!-- เปลี่ยนไอคอนกลับเป็นกล่องของขวัญ -->
+                <i data-lucide="gift" class="w-6 h-6 text-yellow-300"></i>
+            </div>
+            <span class="font-bold text-lg tracking-wide uppercase text-white/90">ร้าน<span class="text-yellow-300">หนานหล่อ</span></span>
+        </div>
+        
+        <button id="soundToggle" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-sm">
+            <i id="soundIcon" data-lucide="volume-2" class="w-5 h-5"></i>
+        </button>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="w-full max-w-md flex flex-col items-center z-10">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-2 drop-shadow-lg leading-tight">
+                หนานหล่อ <br/>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500">แจกโชคใหญ่</span>
+            </h1>
+            <p class="text-white/80 text-sm md:text-base font-light">เปิดกล่องลุ้นรับของรางวัลสุดพิเศษ! จากร้านหนานหล่อ</p>
+        </div>
+
+        <!-- The Grid -->
+        <div id="gameGrid" class="grid grid-cols-3 gap-3 md:gap-4 w-full aspect-square mb-6">
+            <!-- Grid items generated by JS -->
+        </div>
+
+        <!-- Branding / Footer -->
+        <div class="mt-4 text-center opacity-60 text-xs">
+            <p>กิจกรรมพิเศษจาก ร้านหนานหล่อ</p>
+        </div>
+    </main>
+
+    <!-- Result Modal (Hidden by default) -->
+    <div id="resultModal" class="fixed inset-0 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 bg-black/60 backdrop-blur-sm">
+        <div id="modalCard" class="glass-panel w-11/12 max-w-sm p-8 rounded-3xl text-center transform scale-90 transition-transform duration-300">
+            
+            <div id="modalIconContainer" class="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-xl">
+                <i id="modalIcon" data-lucide="trophy" class="w-10 h-10 text-white"></i>
+            </div>
+
+            <h2 id="modalTitle" class="text-3xl font-bold mb-2">You Won!</h2>
+            <p id="modalMessage" class="text-white/80 mb-6">Congratulations! You found the prize.</p>
+
+            <!-- Reward Section (Only visible on win) -->
+            <div id="rewardSection" class="hidden mb-6 bg-white/10 rounded-xl p-3 border border-dashed border-white/30">
+                <p class="text-xs text-white/60 uppercase tracking-widest mb-1">รหัสรางวัลของคุณ</p>
+                <code class="text-xl font-mono text-yellow-300 font-bold select-all">NHANLOR-VIP</code>
+            </div>
+
+            <button id="playAgainBtn" class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform active:scale-95 transition-all">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <!-- Background Decoration (Orbs) -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-64 h-64 bg-red-600 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+        <div class="absolute top-[-10%] right-[-10%] w-64 h-64 bg-yellow-600 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
+        <div class="absolute bottom-[-10%] left-[20%] w-64 h-64 bg-orange-600 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
+    </div>
+
+    <script>
+        // --- Game State ---
+        const state = {
+            isPlaying: true,
+            winningIndex: null,
+            soundEnabled: true,
+            totalBoxes: 9,
+            hasPlayed: localStorage.getItem('luckyBox_nhanlor_played') === 'true' // เปลี่ยน key เพื่อเริ่มใหม่สำหรับธีมนี้
+        };
+        
+        // รายการข้อความแซวคนแพ้ (Teasing messages for losers)
+        const losingMessages = [
+            "กล่องนี้... ว่างเปล่าเหมือนใจเธอ",
+            "หนานหล่อบอกว่า... ลองใหม่วันหลังนะ",
+            "ของรางวัลชิ้นนี้ยังไม่ใช่ของคุณ",
+            "ว้า! อดได้ของขวัญเลย",
+            "ของรางวัลรออยู่... แต่ไม่ใช่กล่องนี้",
+            "ผิดกล่อง! แต่ไม่ผิดใจที่มาร้านเรา",
+            "เกือบได้รางวัลใหญ่แล้วเชียว!"
+        ];
+
+        // รายการข้อความยินดีคนชนะ (Celebratory messages for winners)
+        const winningMessages = [
+            "🎉 ยินดีด้วย! รับของขวัญสุดพิเศษไปเลย!",
+            "ดวงเฮงสุดๆ! รับรางวัล Limited Edition จากหนานหล่อ",
+            "สุดยอด! เตรียมรับความเซอร์ไพรส์ได้เลย",
+            "ช่องนี้แหละ... ที่ซ่อนโชคใหญ่เอาไว้!",
+            "คุณคือผู้โชคดี ได้รับของรางวัลพรีเมียม!"
+        ];
+
+        // --- Audio Engine (Web Audio API) ---
+        // This ensures sound works without external file dependencies
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(type) {
+            if (!state.soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'win') {
+                // Happy arpeggio
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
+                
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+                
+                osc.start(now);
+                osc.stop(now + 1.5);
+            } else if (type === 'lose') {
+                // Sad dissonance
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(150, now + 0.3);
+                
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+
+        // --- DOM Elements ---
+        const grid = document.getElementById('gameGrid');
+        const modal = document.getElementById('resultModal');
+        const modalCard = document.getElementById('modalCard');
+        const soundToggle = document.getElementById('soundToggle');
+        const soundIcon = document.getElementById('soundIcon');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+
+        // --- Initialization ---
+        function initGame() {
+            // เช็คว่าเคยเล่นหรือยัง
+            if (state.hasPlayed) {
+                state.isPlaying = false;
+                showAlreadyPlayedState();
+                return;
+            }
+
+            // Reset State
+            state.isPlaying = true;
+            state.winningIndex = Math.floor(Math.random() * state.totalBoxes);
+            
+            // Clear Grid
+            grid.innerHTML = '';
+            
+            // Generate Boxes
+            for (let i = 0; i < state.totalBoxes; i++) {
+                const box = document.createElement('div');
+                box.className = 'glass-box rounded-2xl flex items-center justify-center cursor-pointer shine';
+                box.dataset.index = i;
+                
+                // Content inside box (เปลี่ยนไอคอนกลับเป็นกล่องของขวัญ)
+                box.innerHTML = `<i data-lucide="gift" class="w-8 h-8 md:w-10 md:h-10 text-white/70 transition-transform duration-300"></i>`;
+                
+                box.addEventListener('click', () => handleBoxClick(i, box));
+                grid.appendChild(box);
+            }
+            
+            // Re-initialize icons for the new elements
+            lucide.createIcons();
+            
+            // Hide Modal
+            toggleModal(false);
+        }
+        
+        function showAlreadyPlayedState() {
+            grid.innerHTML = '';
+            // สร้าง Grid แบบ Disable
+            for (let i = 0; i < state.totalBoxes; i++) {
+                const box = document.createElement('div');
+                box.className = 'glass-box rounded-2xl flex items-center justify-center disabled opacity-30';
+                box.innerHTML = `<i data-lucide="lock" class="w-8 h-8 md:w-10 md:h-10 text-white/50"></i>`;
+                grid.appendChild(box);
+            }
+            lucide.createIcons();
+            
+            // เปลี่ยนข้อความ Header
+            const headerTitle = document.querySelector('h1');
+            if(headerTitle) {
+                headerTitle.innerHTML = `<span class="text-gray-300">ใช้สิทธิ์ไปแล้ว</span>`;
+            }
+            const subTitle = document.querySelector('main p');
+            if(subTitle) {
+                subTitle.innerText = "ขอบคุณที่ร่วมสนุกกับร้านหนานหล่อ ไว้เจอกันใหม่นะ!";
+            }
+        }
+
+        // --- Game Logic ---
+        function handleBoxClick(index, boxElement) {
+            if (!state.isPlaying || state.hasPlayed) return;
+            
+            state.isPlaying = false; // Lock game
+            
+            // บันทึกว่าเล่นแล้วทันทีที่กด
+            localStorage.setItem('luckyBox_nhanlor_played', 'true');
+            state.hasPlayed = true;
+            
+            // Haptic feedback
+            if (navigator.vibrate) navigator.vibrate(50);
+
+            // Disable all other boxes visually
+            Array.from(grid.children).forEach((child, idx) => {
+                if (idx !== index) child.classList.add('disabled');
+            });
+
+            const icon = boxElement.querySelector('svg'); // Get the lucide svg
+            
+            if (index === state.winningIndex) {
+                // WIN SCENARIO
+                boxElement.classList.add('winner');
+                // Change icon to Winning Icon (Crown)
+                boxElement.innerHTML = `<i data-lucide="crown" class="w-10 h-10 text-white drop-shadow-md"></i>`;
+                lucide.createIcons();
+                
+                playTone('win');
+                triggerConfetti();
+                
+                setTimeout(() => {
+                    showResult(true);
+                }, 1000);
+            } else {
+                // LOSE SCENARIO
+                playTone('lose');
+                boxElement.classList.add('loser');
+                if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                
+                // Change icon
+                boxElement.innerHTML = `<i data-lucide="x-circle" class="w-10 h-10 text-white/50"></i>`;
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    showResult(false);
+                }, 800);
+            }
+        }
+
+        function showResult(isWin) {
+            const modalIconContainer = document.getElementById('modalIconContainer');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalMessage = document.getElementById('modalMessage');
+            const rewardSection = document.getElementById('rewardSection');
+            const playAgainBtn = document.getElementById('playAgainBtn');
+
+            // ซ่อนปุ่ม Play Again เพราะเล่นได้แค่ครั้งเดียว
+            playAgainBtn.style.display = 'none';
+
+            if (isWin) {
+                modalIconContainer.className = "mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-xl bg-gradient-to-br from-yellow-300 to-orange-500";
+                modalCard.querySelector('#modalIcon').outerHTML = '<i id="modalIcon" data-lucide="party-popper" class="w-10 h-10 text-white"></i>';
+                
+                modalTitle.textContent = "ยินดีด้วย! คุณชนะ!";
+                modalTitle.className = "text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500";
+                
+                // สุ่มข้อความยินดี
+                const randomWinMsg = winningMessages[Math.floor(Math.random() * winningMessages.length)];
+                modalMessage.textContent = randomWinMsg;
+                
+                rewardSection.classList.remove('hidden');
+                
+            } else {
+                modalIconContainer.className = "mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-xl bg-gray-600";
+                modalCard.querySelector('#modalIcon').outerHTML = '<i id="modalIcon" data-lucide="refresh-cw" class="w-10 h-10 text-white/80"></i>';
+                modalTitle.textContent = "ว้า... แย่จัง!";
+                modalTitle.className = "text-3xl font-bold mb-2 text-white";
+                
+                // สุ่มข้อความแซว
+                const randomMsg = losingMessages[Math.floor(Math.random() * losingMessages.length)];
+                modalMessage.textContent = randomMsg;
+                
+                rewardSection.classList.add('hidden');
+            }
+            
+            lucide.createIcons();
+            toggleModal(true);
+        }
+
+        function toggleModal(show) {
+            if (show) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                modalCard.classList.remove('scale-90');
+                modalCard.classList.add('modal-enter', 'scale-100');
+            } else {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                modalCard.classList.remove('modal-enter', 'scale-100');
+                modalCard.classList.add('scale-90');
+            }
+        }
+
+        // --- Confetti Effect ---
+        function triggerConfetti() {
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 60 };
+
+            function randomInRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                var particleCount = 50 * (timeLeft / duration);
+                // since particles fall down, start a bit higher than random
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        // --- Event Listeners ---
+        playAgainBtn.addEventListener('click', () => {
+            // ไม่ทำอะไรแล้ว เนื่องจากปุ่มถูกซ่อน
+            // แต่ถ้าจะให้ reset เพื่อทดสอบ ให้ uncomment บรรทัดล่าง
+            // localStorage.removeItem('luckyBox_hasPlayed'); location.reload();
+        });
+
+        soundToggle.addEventListener('click', () => {
+            state.soundEnabled = !state.soundEnabled;
+            if (state.soundEnabled) {
+                soundIcon.setAttribute('data-lucide', 'volume-2');
+                playTone('click');
+            } else {
+                soundIcon.setAttribute('data-lucide', 'volume-x');
+            }
+            lucide.createIcons();
+        });
+
+        // Start
+        initGame();
+
+        // Add tailwind animation config for the blobs
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        blob: "blob 7s infinite",
+                    },
+                    keyframes: {
+                        blob: {
+                            "0%": { transform: "translate(0px, 0px) scale(1)" },
+                            "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+                            "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+                            "100%": { transform: "translate(0px, 0px) scale(1)" },
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+</body>
+</html>
